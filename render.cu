@@ -35,6 +35,7 @@ __global__ void drawRays(Uint32* d_pixels, Ray *rays, Circle source) {
     Ray ray = rays[threadIdx.x];
     double dx = cos(ray.angle);
     double dy = sin(ray.angle);
+    
 
     int x = ray.x + source.x;
     int y = ray.y + source.y;

@@ -7,6 +7,7 @@
 #include <chrono>
 #include <iostream>
 #include <cmath>
+#include <cassert>
 
 
 #define WIDTH 1100

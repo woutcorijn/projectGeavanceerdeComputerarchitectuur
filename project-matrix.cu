@@ -1,9 +1,3 @@
-#include <SDL3/SDL.h>
-#include <stdio.h>
-#include <cstdint>
-#include <chrono>
-#include <iostream>
-#include <cmath>
 #include <render.h>
 #include <config.h>
 
@@ -41,6 +35,8 @@ void updateFPS(std::chrono::nanoseconds *totalTime, int *totalLoops, std::chrono
 }
 
 int main() {
+    assert(NUM_RAYS < 1024 && "Rays worden nog berekend met threads.id ");
+
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't initialize SDL: %s", SDL_GetError());
         return 3;
