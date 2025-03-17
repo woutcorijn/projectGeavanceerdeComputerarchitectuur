@@ -4,3 +4,10 @@
 *.ptx
 *.cubin
 *.fatbin
+
+.vscode
+maintest.exe
+maintest.exp
+maintest.lib
+maintest.pdb
+vc140.pdb
