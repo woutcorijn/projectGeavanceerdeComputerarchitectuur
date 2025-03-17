@@ -1,0 +1,225 @@
+#include <SDL3/SDL.h>
+#include <stdio.h>
+#include <cstdint>
+#include <chrono>
+#include <iostream>
+#include <cmath>
+
+#define WIDTH 1100
+#define HEIGHT 800
+
+#define M_PI 3.14159265358979323846
+
+#define COLOR_WHITE 0xffffffff
+#define COLOR_BLACK 0x00000000
+const int NUM_CIRCLE_OBJECTS = 2;
+const int NUM_RAYS = 100;
+
+
+int BLOCKS;
+int BLOCKS_RAYS;
+int THREADSPERBLOCK;
+
+struct Circle
+{
+    int x;
+    int y;
+    int radius;
+    int radius_square;
+    Uint32 pixel;
+};
+
+struct Ray
+{
+    int x;
+    int y;
+    double angle;
+    int length;
+    Uint32 pixel;
+};
+
+
+__global__ void clearScreen(Uint32* d_pixels, Uint32 pixel) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    d_pixels[index] = pixel;
+}
+
+__global__ void drawCircle(Uint32* d_pixels,Circle sourcCircle, Circle *circlesObject) {
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    int indexX = index % WIDTH;
+    int indexY = index / WIDTH;
+    __shared__ Circle circles[NUM_CIRCLE_OBJECTS+1];
+
+    int blockIndex = threadIdx.x;
+    if(blockIndex < NUM_CIRCLE_OBJECTS){
+        circles[blockIndex] = circlesObject[blockIndex];
+    }
+    else if(blockIndex == NUM_CIRCLE_OBJECTS){
+        circles[blockIndex] = sourcCircle;
+    }
+    __syncthreads();
+
+    for(Circle circle: circles){
+        int distance_squared = (indexX-circle.x)*(indexX-circle.x) + (indexY-circle.y)*(indexY-circle.y);
+
+        if(distance_squared <= circle.radius_square){
+            d_pixels[index] = circle.pixel;
+        }
+    }
+}
+
+__global__ void drawRays(Uint32* d_pixels, Ray *rays, Circle source) {
+    Ray ray = rays[threadIdx.x];
+    double dx = cos(ray.angle);
+    double dy = sin(ray.angle);
+
+    int x = ray.x + source.x;
+    int y = ray.y + source.y;
+
+    for (int j = 0; j < ray.length; j++) {
+        int px = x + (int)(j * dx);
+        int py = y + (int)(j * dy);
+
+        // Controleer of de pixel binnen de grenzen van het scherm valt
+        if (j > source.radius && px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+            d_pixels[py * WIDTH + px] = ray.pixel;
+        }
+    }
+}
+
+// Function to render the modified surface to the screen
+void RenderSurface(SDL_Renderer *renderer, SDL_Surface *surface) {
+    // Create a texture from the surface
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!texture) {
+        printf("Failed to create texture: %s\n", SDL_GetError());
+        return;
+    }
+
+    // Render the texture to the screen (position at (0, 0))
+    SDL_RenderTexture(renderer, texture, NULL, NULL);
+    SDL_RenderPresent(renderer);
+
+    // Clean up the texture
+    SDL_DestroyTexture(texture);
+}
+
+void updateFPS(std::chrono::nanoseconds *totalTime, int *totalLoops, std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point stop){
+    (*totalTime) += stop-start;
+    (*totalLoops) ++;
+    if(*totalLoops == 500){
+        double totalSeconds = std::chrono::duration_cast<std::chrono::duration<double>>(*totalTime).count();
+        double fps = *totalLoops / totalSeconds;
+        std::cout << "FPS: " << fps << std::endl;
+        *totalLoops = 0;
+        *totalTime = std::chrono::nanoseconds::zero();
+    }
+}
+
+int main() {
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't initialize SDL: %s", SDL_GetError());
+        return 3;
+    }
+    
+    SDL_Window *window = SDL_CreateWindow("Raytracing", WIDTH, HEIGHT, 0);
+
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
+    if (!renderer) {
+        printf("Failed to create renderer: %s\n", SDL_GetError());
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return -1;
+    }
+
+    SDL_Surface *surface = SDL_CreateSurface(WIDTH, HEIGHT, SDL_PIXELFORMAT_RGBA32);
+    if (!surface) {
+        printf("Failed to create surface: %s\n", SDL_GetError());
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return -1;
+    }
+    Uint32 *pixels = (Uint32*)surface->pixels;
+    const SDL_PixelFormat format = surface->format;
+    const SDL_PixelFormatDetails *formatDetail = SDL_GetPixelFormatDetails(format);
+
+    Uint32 blackPixel = SDL_MapRGBA(formatDetail,NULL, 0, 0, 0, 255);
+    Uint32 greenPixel = SDL_MapRGBA(formatDetail,NULL, 0, 255, 0, 255);
+    Uint32 whitePixel = SDL_MapRGBA(formatDetail,NULL, 255, 255, 255, 255);
+
+    struct Circle sourceCircle ={200,200,80,80*80, greenPixel};
+    struct Circle object1 ={900,300,50,50*50, whitePixel};
+    struct Circle object2 ={800,100,40,40*40, whitePixel};
+    Circle *circles = (Circle*)malloc(NUM_CIRCLE_OBJECTS*sizeof(Circle));
+    Ray *rays = (Ray*)malloc(NUM_RAYS*sizeof(Ray));
+
+    circles[0] = object1;
+    circles[1] = object2;
+
+    for(int i = 0; i < NUM_RAYS; i++){
+        double angle = (double) i * 2* M_PI / NUM_RAYS;
+        struct Ray ray = {0, 0, angle, 300, whitePixel};
+        rays[i] = ray;
+    }
+
+    // Cuda resource allocation
+    Uint32 *d_pixels;
+    Circle *d_circleObjects;
+    Ray *d_rays;
+    cudaMalloc((void**)&d_pixels, WIDTH * HEIGHT * sizeof(Uint32));
+    cudaMalloc((void**)&d_circleObjects, NUM_CIRCLE_OBJECTS*sizeof(Circle));
+    cudaMalloc((void**)&d_rays, NUM_RAYS*sizeof(Ray));
+    cudaMemcpy(d_circleObjects, circles, NUM_CIRCLE_OBJECTS*sizeof(Circle), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_rays, rays, NUM_RAYS*sizeof(Ray), cudaMemcpyHostToDevice);
+
+    THREADSPERBLOCK = 1024;
+    BLOCKS = (WIDTH*HEIGHT + THREADSPERBLOCK - 1) / THREADSPERBLOCK;
+    BLOCKS_RAYS = (WIDTH*HEIGHT + THREADSPERBLOCK - 1) / THREADSPERBLOCK;
+
+    SDL_Event event;
+    bool running{true};
+
+    std::chrono::nanoseconds totalTime = std::chrono::nanoseconds::zero();
+    int totalLoops = 0;
+
+    while(running){
+        auto start = std::chrono::high_resolution_clock::now();
+        
+        while(SDL_PollEvent(&event)){
+            if(event.key.key == 120){
+                // 'x'
+                running = false;
+            }
+            if(event.type == SDL_EVENT_MOUSE_MOTION && 
+                event.motion.state != 0){
+                sourceCircle.x = event.motion.x;
+                sourceCircle.y = event.motion.y;
+            }
+        }
+        clearScreen<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels, blackPixel);
+
+        drawCircle<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels,sourceCircle, d_circleObjects);
+
+        drawRays<<<1, 100>>>(d_pixels, d_rays, sourceCircle);
+
+        cudaMemcpy(pixels, d_pixels, WIDTH * HEIGHT * sizeof(Uint32), cudaMemcpyDeviceToHost);
+
+        SDL_RenderClear(renderer);
+        RenderSurface(renderer, surface);
+        // max 200 fps
+        SDL_Delay(5);
+
+        auto stop = std::chrono::high_resolution_clock::now();
+        updateFPS(&totalTime, &totalLoops, start, stop);
+    }
+
+    free(circles);
+    cudaFree(d_pixels);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
+    return 0;
+}
