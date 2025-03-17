@@ -121,9 +121,9 @@ int main() {
 
         drawCircle<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels,sourceCircle, d_circleObjects);
 
+        calculateLengthRays<<<1, NUM_RAYS>>>(d_rays, d_circleObjects, sourceCircle);
 
-
-        drawRays<<<1, 100>>>(d_pixels, d_rays, sourceCircle);
+        drawRays<<<1, NUM_RAYS>>>(d_pixels, d_rays, sourceCircle);
 
         cudaMemcpy(pixels, d_pixels, WIDTH * HEIGHT * sizeof(Uint32), cudaMemcpyDeviceToHost);
 
