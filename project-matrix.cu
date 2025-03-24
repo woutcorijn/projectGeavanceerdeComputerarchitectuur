@@ -65,7 +65,14 @@ int main() {
     const SDL_PixelFormatDetails *formatDetail = SDL_GetPixelFormatDetails(format);
 
     Uint32 blackPixel = SDL_MapRGBA(formatDetail,NULL, 0, 0, 0, 255);
+    
     Uint32 greenPixel = SDL_MapRGBA(formatDetail,NULL, 0, 255, 0, 255);
+
+    printf("Byte 0: %u\n", (greenPixel & 0xFF000000) >> 24);
+    printf("Byte 1: %u\n", (greenPixel & 0x00FF0000) >> 16);
+    printf("Byte 2: %u\n", (greenPixel & 0x0000FF00) >> 8);
+    printf("Byte 3: %u\n", (greenPixel & 0x000000FF));
+
     Uint32 whitePixel = SDL_MapRGBA(formatDetail,NULL, 255, 255, 255, 255);
 
     struct Circle sourceCircle ={200,200,80,80*80, greenPixel};

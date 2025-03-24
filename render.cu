@@ -43,13 +43,26 @@ __global__ void drawRays(Uint32* d_pixels, Ray *rays, Circle source) {
     int x = ray.x + source.x;
     int y = ray.y + source.y;
 
+    Uint32 fadeFactor = 4;
+    Uint32 fadeByte = fadeFactor * 0xFF;
+    Uint32 oldFadeByte = fadeFactor * 0xFF;
+
     for (int j = 0; j < ray.length; j++) {
+        fadeByte = fadeByte - 0x01;
+        if(fadeByte > oldFadeByte)
+            fadeByte = oldFadeByte;
+        else
+            oldFadeByte = fadeByte;
+
         int px = x + (int)(j * dx);
         int py = y + (int)(j * dy);
 
         // Controleer of de pixel binnen de grenzen van het scherm valt
         if (j > source.radius && px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-            d_pixels[py * WIDTH + px] = ray.pixel;
+            uint32_t pixel = ray.pixel;
+            pixel = (pixel & 0x00FFFFFF) | ((fadeByte / fadeFactor) << 24);
+            
+            d_pixels[py * WIDTH + px] = pixel;
         }
     }
 }
