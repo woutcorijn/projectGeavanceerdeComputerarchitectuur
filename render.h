@@ -26,4 +26,9 @@ __global__ void drawCircle(Uint32* d_pixels,Circle sourceCircle, Circle *circles
 __global__ void drawRays(Uint32* d_pixels, Ray *rays, Circle source);
 __global__ void calculateLengthRays(Ray *rays, Circle *circlesObject, Circle source);
 
+void clearScreenCpu(Uint32* d_pixels, Uint32 pixel);
+void drawCircleCpu(Uint32* d_pixels,Circle circle);
+void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source);
+void calculateLengthRaysCpu(Ray *rays, Circle *circlesObject, Circle source);
+
 #endif

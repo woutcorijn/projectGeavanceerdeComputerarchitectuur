@@ -4,6 +4,7 @@
 int BLOCKS;
 int BLOCKS_RAYS;
 int THREADSPERBLOCK;
+bool gpu = true;
 
 // Function to render the modified surface to the screen
 void RenderSurface(SDL_Renderer *renderer, SDL_Surface *surface) {
@@ -90,61 +91,111 @@ int main() {
         rays[i] = ray;
     }
 
-    // Cuda resource allocation
-    Uint32 *d_pixels;
-    Circle *d_circleObjects;
-    Ray *d_rays;
-    cudaMalloc((void**)&d_pixels, WIDTH * HEIGHT * sizeof(Uint32));
-    cudaMalloc((void**)&d_circleObjects, NUM_CIRCLE_OBJECTS*sizeof(Circle));
-    cudaMalloc((void**)&d_rays, NUM_RAYS*sizeof(Ray));
-    cudaMemcpy(d_circleObjects, circles, NUM_CIRCLE_OBJECTS*sizeof(Circle), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_rays, rays, NUM_RAYS*sizeof(Ray), cudaMemcpyHostToDevice);
+    if(gpu) {
+        // Cuda resource allocation
+        Uint32 *d_pixels;
+        Circle *d_circleObjects;
+        Ray *d_rays;
+        cudaMalloc((void**)&d_pixels, WIDTH * HEIGHT * sizeof(Uint32));
+        cudaMalloc((void**)&d_circleObjects, NUM_CIRCLE_OBJECTS*sizeof(Circle));
+        cudaMalloc((void**)&d_rays, NUM_RAYS*sizeof(Ray));
+        cudaMemcpy(d_circleObjects, circles, NUM_CIRCLE_OBJECTS*sizeof(Circle), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_rays, rays, NUM_RAYS*sizeof(Ray), cudaMemcpyHostToDevice);
 
-    THREADSPERBLOCK = 1024;
-    BLOCKS = (WIDTH*HEIGHT + THREADSPERBLOCK - 1) / THREADSPERBLOCK;
-    BLOCKS_RAYS = (WIDTH*HEIGHT + THREADSPERBLOCK - 1) / THREADSPERBLOCK;
+        THREADSPERBLOCK = 1024;
+        BLOCKS = (WIDTH*HEIGHT + THREADSPERBLOCK - 1) / THREADSPERBLOCK;
+        BLOCKS_RAYS = (WIDTH*HEIGHT + THREADSPERBLOCK - 1) / THREADSPERBLOCK;
 
-    SDL_Event event;
-    bool running{true};
+        SDL_Event event;
+        bool running{true};
 
-    std::chrono::nanoseconds totalTime = std::chrono::nanoseconds::zero();
-    int totalLoops = 0;
+        std::chrono::nanoseconds totalTime = std::chrono::nanoseconds::zero();
+        int totalLoops = 0;
 
-    while(running){
-        auto start = std::chrono::high_resolution_clock::now();
-        
-        while(SDL_PollEvent(&event)){
-            if(event.key.key == 120){
-                // 'x'
-                running = false;
+        while(running) {
+            auto start = std::chrono::high_resolution_clock::now();
+            
+            while(SDL_PollEvent(&event)){
+                if(event.key.key == 120){
+                    // 'x'
+                    running = false;
+                }
+                if(event.type == SDL_EVENT_MOUSE_MOTION && 
+                    event.motion.state != 0){
+                    sourceCircle.x = event.motion.x;
+                    sourceCircle.y = event.motion.y;
+                }
             }
-            if(event.type == SDL_EVENT_MOUSE_MOTION && 
-                event.motion.state != 0){
-                sourceCircle.x = event.motion.x;
-                sourceCircle.y = event.motion.y;
-            }
+            clearScreen<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels, blackPixel);
+
+            drawCircle<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels,sourceCircle, d_circleObjects);
+
+            calculateLengthRays<<<1, NUM_RAYS>>>(d_rays, d_circleObjects, sourceCircle);
+
+            drawRays<<<1, NUM_RAYS>>>(d_pixels, d_rays, sourceCircle);
+
+            cudaMemcpy(pixels, d_pixels, WIDTH * HEIGHT * sizeof(Uint32), cudaMemcpyDeviceToHost);
+
+            SDL_RenderClear(renderer);
+            RenderSurface(renderer, surface);
+            // max 200 fps
+            SDL_Delay(5);
+
+            auto stop = std::chrono::high_resolution_clock::now();
+            updateFPS(&totalTime, &totalLoops, start, stop);
+
         }
-        clearScreen<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels, blackPixel);
 
-        drawCircle<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels,sourceCircle, d_circleObjects);
+        cudaFree(d_pixels);
+        cudaFree(d_circleObjects);
+        cudaFree(d_rays);
 
-        calculateLengthRays<<<1, NUM_RAYS>>>(d_rays, d_circleObjects, sourceCircle);
+    } else {
+        //CPU
+        SDL_Event event;
+        bool running{true};
 
-        drawRays<<<1, NUM_RAYS>>>(d_pixels, d_rays, sourceCircle);
+        std::chrono::nanoseconds totalTime = std::chrono::nanoseconds::zero();
+        int totalLoops = 0;
 
-        cudaMemcpy(pixels, d_pixels, WIDTH * HEIGHT * sizeof(Uint32), cudaMemcpyDeviceToHost);
+        while(running){
+            auto start = std::chrono::high_resolution_clock::now();
+            
+            while(SDL_PollEvent(&event)){
+                if(event.key.key == 120){
+                    // 'x'
+                    running = false;
+                }
+                if(event.type == SDL_EVENT_MOUSE_MOTION && 
+                    event.motion.state != 0){
+                    sourceCircle.x = event.motion.x;
+                    sourceCircle.y = event.motion.y;
+                }
+            }
+            clearScreenCpu(pixels, blackPixel);
 
-        SDL_RenderClear(renderer);
-        RenderSurface(renderer, surface);
-        // max 200 fps
-        SDL_Delay(5);
+            drawCircleCpu(pixels, sourceCircle);
+            for (int i = 0; i < NUM_CIRCLE_OBJECTS; i++) {
+                drawCircleCpu(pixels, circles[i]);
+            }
 
-        auto stop = std::chrono::high_resolution_clock::now();
-        updateFPS(&totalTime, &totalLoops, start, stop);
+            calculateLengthRaysCpu(rays, circles, sourceCircle);
+
+            drawRaysCpu(pixels, rays, sourceCircle);
+
+            SDL_RenderClear(renderer);
+            RenderSurface(renderer, surface);
+            // max 200 fps
+            SDL_Delay(5);
+
+            auto stop = std::chrono::high_resolution_clock::now();
+            updateFPS(&totalTime, &totalLoops, start, stop);
+        }
     }
 
     free(circles);
-    cudaFree(d_pixels);
+    free(pixels);
+    free(rays);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

@@ -43,7 +43,7 @@ __global__ void drawRays(Uint32* d_pixels, Ray *rays, Circle source) {
     int x = ray.x + source.x;
     int y = ray.y + source.y;
 
-    Uint32 fadeFactor = 4;
+    Uint32 fadeFactor = 10;
     Uint32 fadeByte = fadeFactor * 0xFF;
     Uint32 oldFadeByte = fadeFactor * 0xFF;
 
