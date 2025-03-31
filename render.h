@@ -14,10 +14,11 @@ struct Circle
 
 struct Ray
 {
-    int x;
-    int y;
-    double angle;
-    int length;
+    int x[8];
+    int y[8];
+    double angle[8];
+    int length[8];
+    int reflections;
     Uint32 pixel;
 };
 

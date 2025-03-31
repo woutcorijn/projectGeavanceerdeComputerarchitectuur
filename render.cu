@@ -1,6 +1,11 @@
 #include <render.h>
 #include <config.h>
 
+__device__ uint8_t saturating_add(uint8_t a, uint8_t b) {
+    uint16_t sum = (uint16_t)a + (uint16_t)b;
+    return (sum > 255) ? 255 : (uint8_t)sum;
+}
+
 __global__ void clearScreen(Uint32* d_pixels, Uint32 pixel) {
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     d_pixels[index] = pixel;
@@ -33,36 +38,54 @@ __global__ void drawCircle(Uint32* d_pixels,Circle sourceCircle, Circle *circles
 
 __global__ void drawRays(Uint32* d_pixels, Ray *rays, Circle source) {
     Ray ray = rays[threadIdx.x];
-    if(ray.length == 0){
+    if(ray.length[0] == 0){
         return;
     }
-    double dx = cos(ray.angle);
-    double dy = sin(ray.angle);
+    double dx = cos(ray.angle[0]);
+    double dy = sin(ray.angle[0]);
     
 
-    int x = ray.x + source.x;
-    int y = ray.y + source.y;
+    int x = ray.x[0] + source.x;
+    int y = ray.y[0] + source.y;
 
-    Uint32 fadeFactor = 4;
-    Uint32 fadeByte = fadeFactor * 0xFF;
-    Uint32 oldFadeByte = fadeFactor * 0xFF;
+    double fadeLength = 16;
+    double fadeFactor = 0.997;
+    double fadeByte = fadeLength * (ray.pixel >> 24);
 
-    for (int j = 0; j < ray.length; j++) {
-        fadeByte = fadeByte - 0x01;
-        if(fadeByte > oldFadeByte)
-            fadeByte = oldFadeByte;
-        else
-            oldFadeByte = fadeByte;
+    for (int j = 0; j < ray.length[0]; j++) {
+        
 
         int px = x + (int)(j * dx);
         int py = y + (int)(j * dy);
 
         // Controleer of de pixel binnen de grenzen van het scherm valt
         if (j > source.radius && px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+            fadeByte = fadeByte*fadeFactor;
             uint32_t pixel = ray.pixel;
-            pixel = (pixel & 0x00FFFFFF) | ((fadeByte / fadeFactor) << 24);
+            pixel = (pixel & 0x00FFFFFF) | ((uint32_t)(fadeByte / fadeLength) << 24);
             
-            d_pixels[py * WIDTH + px] = pixel;
+            uint8_t a = (pixel >> 0) & 0xFF;
+            uint8_t r = (pixel >> 8) & 0xFF;
+            uint8_t g = (pixel >> 16) & 0xFF;
+            uint8_t b = (pixel >> 24) & 0xFF;
+
+            uint32_t d_pixel = d_pixels[py * WIDTH + px];
+
+            uint8_t a_old = (d_pixel >> 0) & 0xFF;
+            uint8_t r_old = (d_pixel >> 8) & 0xFF;
+            uint8_t g_old = (d_pixel >> 16) & 0xFF;
+            uint8_t b_old = (d_pixel >> 24) & 0xFF;
+
+            uint8_t a_new = saturating_add(a, a_old);
+            uint8_t r_new = saturating_add(r, r_old);
+            uint8_t g_new = saturating_add(g, g_old);
+            uint8_t b_new = saturating_add(b, b_old);
+
+            uint32_t new_pixel = (b_new << 24) | (g_new << 16) | (r_new << 8) | (a_new);
+            atomicExch(&d_pixels[py * WIDTH + px], new_pixel);
+        }
+        else if(px < 0 || px > WIDTH || py < 0 || py > HEIGHT || fadeByte < 1){
+            return;
         }
     }
 }
@@ -79,9 +102,11 @@ __global__ void calculateLengthRays(Ray *rays, Circle *circlesObject, Circle sou
 
     Ray &ray = rays[index];
 
+    
+
     // y = helling * x + a
     
-    //printf("x: %d, y: %d", ray.x, ray.y);
+    //printf("x: %d, y: %d", ray.x[0], ray.y[0]);
 
     // (x - c.x)^2 + (y - c.y)^2 = r^2 -> circle
 
@@ -101,15 +126,17 @@ __global__ void calculateLengthRays(Ray *rays, Circle *circlesObject, Circle sou
     // Diskriminant = B^2 - 4*A*C
     // x1 = (-B + sqrt(B^2 - 4*A*C)) / (2*A)
     // x2 = (-B - sqrt(B^2 - 4*A*C)) / (2*A)
-    double rayDirX = cos(ray.angle);
-    double rayDirY = sin(ray.angle);
+    double rayDirX = cos(ray.angle[0]);
+    double rayDirY = sin(ray.angle[0]);
 
     double helling = rayDirY/rayDirX;
-    double a = (ray.y+source.y) - helling * (ray.x+source.x);
+    double a = (ray.y[0]+source.y) - helling * (ray.x[0]+source.x);
     
     double A = 1.0 + helling*helling;
 
     bool lengthSet = false;
+    ray.length[0] = INT32_MAX;
+
     for(Circle circle: circles){
         double B = 2.0 * helling * (a - circle.y) - 2.0 * circle.x;
         double C = circle.x*circle.x + (a - circle.y)*(a - circle.y) - circle.radius_square;
@@ -123,35 +150,37 @@ __global__ void calculateLengthRays(Ray *rays, Circle *circlesObject, Circle sou
             double y2 = helling * x2 + a;
 
             // scalair product om te kijken of de circle in de richting van de ray valt
-            double vec1X = x1 - (ray.x + source.x);
-            double vec1Y = y1 - (ray.y + source.y);
+            double vec1X = x1 - (ray.x[0] + source.x);
+            double vec1Y = y1 - (ray.y[0] + source.y);
             double dot1 = rayDirX * vec1X + rayDirY * vec1Y;
             
-            double length1 = sqrt((x1 - ray.x-source.x) * (x1 - ray.x-source.x) + (y1 - ray.y-source.y) * (y1 - ray.y-source.y));
-            double length2 = sqrt((x2 - ray.x-source.x) * (x2 - ray.x-source.x) + (y2 - ray.y-source.y) * (y2 - ray.y-source.y));
+            double length1 = sqrt((x1 - ray.x[0]-source.x) * (x1 - ray.x[0]-source.x) + (y1 - ray.y[0]-source.y) * (y1 - ray.y[0]-source.y));
+            double length2 = sqrt((x2 - ray.x[0]-source.x) * (x2 - ray.x[0]-source.x) + (y2 - ray.y[0]-source.y) * (y2 - ray.y[0]-source.y));
+
+            // Scalair product berekenen om richting te bepalen
             if(dot1 > 0){
                 if (length1 < length2) {
-                    if(lengthSet == true && length1 < ray.length || lengthSet == false){
+                    if(lengthSet == true && length1 < ray.length[0] || lengthSet == false){
                         lengthSet = true;
-                        ray.length = (int)length1;
+                        ray.length[0] = (int)length1;
                     }
                 } else {
-                    if(lengthSet == true && length2 < ray.length || lengthSet == false){
+                    if(lengthSet == true && length2 < ray.length[0] || lengthSet == false){
                         lengthSet = true;
-                        ray.length = (int)length2;
+                        ray.length[0] = (int)length2;
                     }
                 }
-                if(ray.length > WIDTH+HEIGHT){
-                    ray.length = WIDTH+HEIGHT;
+                if(ray.length[0] > WIDTH+HEIGHT){
+                    ray.length[0] = WIDTH+HEIGHT;
                 } 
             }
             else{
-                ray.length = WIDTH+HEIGHT;
+                ray.length[0] = WIDTH+HEIGHT;
             }
         }
         else{
             if(lengthSet == false){
-                ray.length = WIDTH+HEIGHT;
+                ray.length[0] = WIDTH+HEIGHT;
             }
         }
 

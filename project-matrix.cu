@@ -64,18 +64,12 @@ int main() {
     const SDL_PixelFormat format = surface->format;
     const SDL_PixelFormatDetails *formatDetail = SDL_GetPixelFormatDetails(format);
 
-    Uint32 blackPixel = SDL_MapRGBA(formatDetail,NULL, 0, 0, 0, 255);
-    
+    Uint32 blackPixel = SDL_MapRGBA(formatDetail,NULL, 0, 0, 0, 0);
     Uint32 greenPixel = SDL_MapRGBA(formatDetail,NULL, 0, 255, 0, 255);
-
-    printf("Byte 0: %u\n", (greenPixel & 0xFF000000) >> 24);
-    printf("Byte 1: %u\n", (greenPixel & 0x00FF0000) >> 16);
-    printf("Byte 2: %u\n", (greenPixel & 0x0000FF00) >> 8);
-    printf("Byte 3: %u\n", (greenPixel & 0x000000FF));
-
     Uint32 whitePixel = SDL_MapRGBA(formatDetail,NULL, 255, 255, 255, 255);
+    Uint32 yellowPixel = SDL_MapRGBA(formatDetail,NULL, 255, 222, 0, 255);
 
-    struct Circle sourceCircle ={200,200,80,80*80, greenPixel};
+    struct Circle sourceCircle ={200,200,80,80*80, yellowPixel};
     struct Circle object1 ={900,300,50,50*50, whitePixel};
     struct Circle object2 ={800,100,40,40*40, whitePixel};
     Circle *circles = (Circle*)malloc(NUM_CIRCLE_OBJECTS*sizeof(Circle));
@@ -86,7 +80,7 @@ int main() {
 
     for(int i = 0; i < NUM_RAYS; i++){
         double angle = (double) i * 2* M_PI / NUM_RAYS;
-        struct Ray ray = {0, 0, angle, 300, whitePixel};
+        struct Ray ray = {{0}, {0}, {angle}, {INT32_MAX}, 0, yellowPixel};
         rays[i] = ray;
     }
 
@@ -114,8 +108,8 @@ int main() {
         auto start = std::chrono::high_resolution_clock::now();
         
         while(SDL_PollEvent(&event)){
-            if(event.key.key == 120){
-                // 'x'
+            if(event.key.key == 120 || event.key.key == 27 || event.type == SDL_EVENT_QUIT){
+                // 'x', 'esc'
                 running = false;
             }
             if(event.type == SDL_EVENT_MOUSE_MOTION && 
@@ -136,8 +130,7 @@ int main() {
 
         SDL_RenderClear(renderer);
         RenderSurface(renderer, surface);
-        // max 200 fps
-        SDL_Delay(5);
+        //SDL_Delay(1);
 
         auto stop = std::chrono::high_resolution_clock::now();
         updateFPS(&totalTime, &totalLoops, start, stop);
