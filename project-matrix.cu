@@ -4,7 +4,7 @@
 int BLOCKS;
 int BLOCKS_RAYS;
 int THREADSPERBLOCK;
-bool gpu = true;
+bool gpu = false;
 
 // Function to render the modified surface to the screen
 void RenderSurface(SDL_Renderer *renderer, SDL_Surface *surface) {
@@ -81,7 +81,7 @@ int main() {
 
     for(int i = 0; i < NUM_RAYS; i++){
         double angle = (double) i * 2* M_PI / NUM_RAYS;
-        struct Ray ray = {{0}, {0}, {angle}, {INT32_MAX}, 0, yellowPixel};
+        struct Ray ray = {{0}, {0}, {angle}, {INT32_MAX}, 0, {yellowPixel}};
         rays[i] = ray;
     }
 
@@ -173,6 +173,8 @@ int main() {
             }
 
             calculateLengthRaysCpu(rays, circles, sourceCircle);
+
+            calculateReflectionCpu(rays, circles, sourceCircle);
 
             drawRaysCpu(pixels, rays, sourceCircle);
 

@@ -19,7 +19,7 @@ struct Ray
     double angle[8];
     int length[8];
     int reflections;
-    Uint32 pixel;
+    Uint32 pixel[8];
 };
 
 __global__ void clearScreen(Uint32* d_pixels, Uint32 pixel);
@@ -31,5 +31,6 @@ void clearScreenCpu(Uint32* d_pixels, Uint32 pixel);
 void drawCircleCpu(Uint32* d_pixels,Circle circle);
 void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source);
 void calculateLengthRaysCpu(Ray *rays, Circle *circlesObject, Circle source);
+void calculateReflectionCpu(Ray *rays, Circle *circlesObject, Circle source);
 
 #endif
