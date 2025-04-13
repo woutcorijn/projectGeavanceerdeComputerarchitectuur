@@ -36,8 +36,6 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
             int x = ray.x[rayIndex] + source.x;
             int y = ray.y[rayIndex] + source.y;
 
-            double fadeByte = fadeLength * (ray.pixel[rayIndex] >> 24);
-
             for (int j = 0; j < ray.length[rayIndex]; j++) {
                 fadeByte = fadeByte*fadeFactor;
 
@@ -45,12 +43,15 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
                 int py = y + (int)(j * dy);
         
                 // Controleer of de pixel binnen de grenzen van het scherm valt
-                if (j > source.radius && px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+                if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
                     fadeByte = fadeByte*fadeFactor;
                     uint32_t pixel = ray.pixel[rayIndex];
                     pixel = (pixel & 0x00FFFFFF) | ((uint32_t)(fadeByte / fadeLength) << 24);
                     d_pixels[py * WIDTH + px] = pixel+d_pixels[py * WIDTH + px];
                 }
+                else if(px < 0 || px > WIDTH || py < 0 || py > HEIGHT || fadeByte < 1){
+                    break;break;
+                }/**/
             }
         }
     }
