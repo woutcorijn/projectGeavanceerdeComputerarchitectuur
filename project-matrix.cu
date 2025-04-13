@@ -167,7 +167,7 @@ int main() {
             }
             clearScreenCpu(pixels, blackPixel);
 
-            for(int i = 0; i < 2; i++){
+            for(int i = 0; i < 3; i++){
                 calculateLengthRaysCpu(rays, circles, sourceCircle, i);
                 calculateReflectionCpu(rays, circles, sourceCircle, i);
             }

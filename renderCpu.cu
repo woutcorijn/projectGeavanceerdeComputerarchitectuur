@@ -29,7 +29,7 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
         Uint32 fadeByte = fadeFactor * 0xFF;
         Uint32 oldFadeByte = fadeFactor * 0xFF;
 
-        for(int rayIndex = 0; rayIndex < 3; rayIndex++) {
+        for(int rayIndex = 0; rayIndex < 4; rayIndex++) {
             double dx = cos(ray.angle[rayIndex]);
             double dy = sin(ray.angle[rayIndex]);
 
@@ -120,8 +120,10 @@ void calculateReflectionCpu(Ray *rays, Circle *circlesObject, Circle source, int
         float dx = cos(ray.angle[rayIndex]);
         float dy = sin(ray.angle[rayIndex]);
 
-        float x0 = source.x;
-        float y0 = source.y;
+        //float x0 = ray.x[rayIndex];
+        //float y0 = ray.y[rayIndex];
+        float x0 = source.x + ray.x[rayIndex];
+        float y0 = source.y + ray.y[rayIndex];
 
         Circle *closestCircle = nullptr;
         float closestT = std::numeric_limits<float>::max(); // kortste afstand tot raakpunt
@@ -175,7 +177,7 @@ void calculateReflectionCpu(Ray *rays, Circle *circlesObject, Circle source, int
             float ry = dy - 2 * dot * ny;
 
             ray.angle[rayIndex + 1] = atan2(ry, rx);
-            ray.length[rayIndex + 1] = ray.length[rayIndex];
+            ray.length[rayIndex + 1] = 600;
             ray.pixel[rayIndex + 1] = ray.pixel[rayIndex];
         }
     }
