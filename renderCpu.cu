@@ -25,11 +25,11 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
     for(int i = 0; i < NUM_RAYS; i++) {
         Ray ray = rays[i];
 
-        Uint32 fadeFactor = 6;
-        Uint32 fadeByte = fadeFactor * 0xFF;
-        Uint32 oldFadeByte = fadeFactor * 0xFF;
-
+        double fadeLength = 16;
+        double fadeFactor = 0.997;
+        double fadeByte = fadeLength * (ray.pixel[0] >> 24);
         for(int rayIndex = 0; rayIndex < 4; rayIndex++) {
+            
             double dx = cos(ray.angle[rayIndex]);
             double dy = sin(ray.angle[rayIndex]);
 
@@ -37,12 +37,7 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
             int y = ray.y[rayIndex] + source.y;
 
             for (int j = 0; j < ray.length[rayIndex]; j++) {
-                fadeByte -= 0x01;
-                
-                if(fadeByte > oldFadeByte)
-                    fadeByte = oldFadeByte;
-                else
-                    oldFadeByte = fadeByte;
+                fadeByte = fadeByte*fadeFactor;
 
                 int px = x + (int)(j * dx);
                 int py = y + (int)(j * dy);
@@ -50,8 +45,8 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
                 // Controleer of de pixel binnen het scherm valt
                 if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
                     uint32_t pixel = ray.pixel[rayIndex];
-                    pixel = (pixel & 0x00FFFFFF) | ((fadeByte / fadeFactor) << 24);
-                    d_pixels[py * WIDTH + px] = pixel;
+                    pixel = (pixel & 0x00FFFFFF) | ((uint32_t)(fadeByte / fadeLength) << 24);
+                    d_pixels[py * WIDTH + px] = pixel+d_pixels[py * WIDTH + px];
                 }
             }
         }
