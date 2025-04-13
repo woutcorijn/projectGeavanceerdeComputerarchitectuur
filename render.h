@@ -30,7 +30,7 @@ __global__ void calculateLengthRays(Ray *rays, Circle *circlesObject, Circle sou
 void clearScreenCpu(Uint32* d_pixels, Uint32 pixel);
 void drawCircleCpu(Uint32* d_pixels,Circle circle);
 void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source);
-void calculateLengthRaysCpu(Ray *rays, Circle *circlesObject, Circle source);
-void calculateReflectionCpu(Ray *rays, Circle *circlesObject, Circle source);
+void calculateLengthRaysCpu(Ray *rays, Circle *circlesObject, Circle source, int rayIndex);
+void calculateReflectionCpu(Ray *rays, Circle *circlesObject, Circle source, int rayIndex);
 
 #endif

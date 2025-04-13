@@ -17,6 +17,6 @@
 #define COLOR_BLACK 0x00000000
 
 constexpr int NUM_CIRCLE_OBJECTS = 2;
-constexpr int NUM_RAYS = 201;
+constexpr int NUM_RAYS = 9;
 
 #endif

@@ -29,7 +29,7 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
         Uint32 fadeByte = fadeFactor * 0xFF;
         Uint32 oldFadeByte = fadeFactor * 0xFF;
 
-        for(int rayIndex = 0; rayIndex < 2; rayIndex++) {
+        for(int rayIndex = 0; rayIndex < 3; rayIndex++) {
             double dx = cos(ray.angle[rayIndex]);
             double dy = sin(ray.angle[rayIndex]);
 
@@ -38,6 +38,7 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
 
             for (int j = 0; j < ray.length[rayIndex]; j++) {
                 fadeByte -= 0x01;
+                
                 if(fadeByte > oldFadeByte)
                     fadeByte = oldFadeByte;
                 else
@@ -57,107 +58,67 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
     }
 }
 
-void calculateLengthRaysCpu(Ray *rays, Circle *circlesObject, Circle source) {
+void calculateLengthRaysCpu(Ray *rays, Circle *circlesObject, Circle source, int rayIndex) {
     Circle circles[NUM_CIRCLE_OBJECTS];
     for(int i = 0; i < NUM_CIRCLE_OBJECTS; i++) {
         circles[i] = circlesObject[i];
     }
 
-    int rayIndex = 0;
-
-    for(int i = 0; i < NUM_RAYS; i++){
+    for (int i = 0; i < NUM_RAYS; i++) {
         Ray &ray = rays[i];
-
-        // y = helling * x + a
-        
-        //printf("x: %d, y: %d", ray.x, ray.y);
-
-        // (x - c.x)^2 + (y - c.y)^2 = r^2 -> circle
-
-        // (x - c.x)^2 + ((helling * x + a) - c.y)^2 = r^2 -> ray in circle vergelijking steken
-
-        // (x - c.x)^2 + (helling * x + (a - c.y))^2 = r^2
-
-        // (x^2 - 2 * c.x * x + c.x^2) + (helling^2 * x^2 + 2 * helling * x * (a - c.y) + (a - c.y)^2) - r^2 = 0
-
-        // (1 + helling^2) *x^2 + (2 * helling * (a - c.y) - 2 *c.x) * x + c.x^2 + (a - c.y)^2 - r^2 = 0
-
-        // A = 1 + helling^2
-        // B = 2 * helling * (a - c.y) - 2 *c.x
-        // C = c.x^2 + (a - c.y)^2 - r^2
-        // A*x^2 + B*x + C = 0
-
-        // Diskriminant = B^2 - 4*A*C
-        // x1 = (-B + sqrt(B^2 - 4*A*C)) / (2*A)
-        // x2 = (-B - sqrt(B^2 - 4*A*C)) / (2*A)
         double rayDirX = cos(ray.angle[rayIndex]);
         double rayDirY = sin(ray.angle[rayIndex]);
-
-        double helling = rayDirY/rayDirX;
-        double a = (ray.y[rayIndex]+source.y) - helling * (ray.x[rayIndex]+source.x);
-        
-        double A = 1.0 + helling*helling;
-
-        bool lengthSet = false;
-        for(Circle circle: circles){
-            double B = 2.0 * helling * (a - circle.y) - 2.0 * circle.x;
-            double C = circle.x*circle.x + (a - circle.y)*(a - circle.y) - circle.radius_square;
-            double discriminant = B*B - 4.0*A*C;
-
+        double originX = ray.x[rayIndex] + source.x;
+        double originY = ray.y[rayIndex] + source.y;
+    
+        double minLength = WIDTH + HEIGHT; // very large number
+    
+        for (Circle circle : circles) {
+            double dx = rayDirX;
+            double dy = rayDirY;
+    
+            double cx = circle.x;
+            double cy = circle.y;
+            double r2 = circle.radius_square;
+    
+            // Compute quadratic coefficients
+            double a = dx * dx + dy * dy;
+            double b = 2.0 * (dx * (originX - cx) + dy * (originY - cy));
+            double c = (originX - cx) * (originX - cx) + (originY - cy) * (originY - cy) - r2;
+    
+            double discriminant = b * b - 4 * a * c;
+    
             if (discriminant >= 0.0) {
-                double x1 = (-B + sqrt(discriminant)) / (2.0*A);
-                double x2 = (-B - sqrt(discriminant)) / (2.0*A);
-                // bereken y op circle
-                double y1 = helling * x1 + a;
-                double y2 = helling * x2 + a;
-
-                // scalair product om te kijken of de circle in de richting van de ray valt
-                double vec1X = x1 - (ray.x[rayIndex] + source.x);
-                double vec1Y = y1 - (ray.y[rayIndex] + source.y);
-                double dot1 = rayDirX * vec1X + rayDirY * vec1Y;
-                
-                double length1 = sqrt((x1 - ray.x[rayIndex]-source.x) * (x1 - ray.x[rayIndex]-source.x) + (y1 - ray.y[rayIndex]-source.y) * (y1 - ray.y[rayIndex]-source.y));
-                double length2 = sqrt((x2 - ray.x[rayIndex]-source.x) * (x2 - ray.x[rayIndex]-source.x) + (y2 - ray.y[rayIndex]-source.y) * (y2 - ray.y[rayIndex]-source.y));
-                if(dot1 > 0){
-                    if (length1 < length2) {
-                        if(lengthSet == true && length1 < ray.length[rayIndex] || lengthSet == false){
-                            lengthSet = true;
-                            ray.length[rayIndex] = (int)length1;
-                        }
-                    } else {
-                        if(lengthSet == true && length2 < ray.length[rayIndex] || lengthSet == false){
-                            lengthSet = true;
-                            ray.length[rayIndex] = (int)length2;
-                        }
-                    }
-                    if(ray.length[rayIndex] > WIDTH+HEIGHT){
-                        ray.length[rayIndex] = WIDTH+HEIGHT;
-                    } 
+                double sqrtDisc = sqrt(discriminant);
+                double t1 = (-b + sqrtDisc) / (2.0 * a);
+                double t2 = (-b - sqrtDisc) / (2.0 * a);
+    
+                // Only consider points in front of ray origin (t > 0)
+                if (t1 > 0) {
+                    double length1 = t1 * sqrt(a);
+                    if (length1 < minLength) minLength = length1;
                 }
-                else{
-                    ray.length[rayIndex] = WIDTH+HEIGHT;
-                }
-            }
-            else{
-                if(lengthSet == false){
-                    ray.length[rayIndex] = WIDTH+HEIGHT;
+    
+                if (t2 > 0) {
+                    double length2 = t2 * sqrt(a);
+                    if (length2 < minLength) minLength = length2;
                 }
             }
         }
+        ray.length[rayIndex] = (int)minLength;
     }
-
 }
 
-void calculateReflectionCpu(Ray *rays, Circle *circlesObject, Circle source) {
+void calculateReflectionCpu(Ray *rays, Circle *circlesObject, Circle source, int rayIndex) {
     for(int i = 0; i < NUM_RAYS; i++){
         Ray &ray = rays[i];
 
         // Raakpunt berekenen
-        ray.x[1] = ray.length[0] * cos(ray.angle[0]);
-        ray.y[1] = ray.length[0] * sin(ray.angle[0]);
+        ray.x[rayIndex + 1] = ray.x[rayIndex] + ray.length[rayIndex] * cos(ray.angle[rayIndex]);
+        ray.y[rayIndex + 1] = ray.y[rayIndex] + ray.length[rayIndex] * sin(ray.angle[rayIndex]);
 
-        float dx = cos(ray.angle[0]);
-        float dy = sin(ray.angle[0]);
+        float dx = cos(ray.angle[rayIndex]);
+        float dy = sin(ray.angle[rayIndex]);
 
         float x0 = source.x;
         float y0 = source.y;
@@ -213,9 +174,9 @@ void calculateReflectionCpu(Ray *rays, Circle *circlesObject, Circle source) {
             float rx = dx - 2 * dot * nx;
             float ry = dy - 2 * dot * ny;
 
-            ray.angle[1] = atan2(ry, rx);
-            ray.length[1] = ray.length[0];
-            ray.pixel[1] = ray.pixel[0];
+            ray.angle[rayIndex + 1] = atan2(ry, rx);
+            ray.length[rayIndex + 1] = ray.length[rayIndex];
+            ray.pixel[rayIndex + 1] = ray.pixel[rayIndex];
         }
     }
 }

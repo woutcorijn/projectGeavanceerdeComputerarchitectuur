@@ -167,16 +167,17 @@ int main() {
             }
             clearScreenCpu(pixels, blackPixel);
 
+            for(int i = 0; i < 2; i++){
+                calculateLengthRaysCpu(rays, circles, sourceCircle, i);
+                calculateReflectionCpu(rays, circles, sourceCircle, i);
+            }
+
+            drawRaysCpu(pixels, rays, sourceCircle);
+
             drawCircleCpu(pixels, sourceCircle);
             for (int i = 0; i < NUM_CIRCLE_OBJECTS; i++) {
                 drawCircleCpu(pixels, circles[i]);
             }
-
-            calculateLengthRaysCpu(rays, circles, sourceCircle);
-
-            calculateReflectionCpu(rays, circles, sourceCircle);
-
-            drawRaysCpu(pixels, rays, sourceCircle);
 
             SDL_RenderClear(renderer);
             RenderSurface(renderer, surface);
