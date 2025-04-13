@@ -4,7 +4,7 @@
 int BLOCKS;
 int BLOCKS_RAYS;
 int THREADSPERBLOCK;
-bool gpu = false;
+bool gpu = true;
 
 // Function to render the modified surface to the screen
 void RenderSurface(SDL_Renderer *renderer, SDL_Surface *surface) {
@@ -122,13 +122,16 @@ int main() {
         }
         clearScreen<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels, blackPixel);
 
-            drawCircle<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels,sourceCircle, d_circleObjects);
+        for(int i = 0; i < NUM_REFLECTIONS - 1; i++){
+            calculateLengthRays<<<1, NUM_RAYS>>>(d_rays, d_circleObjects, sourceCircle, i);
+            calculateReflection<<<1, NUM_RAYS>>>(d_rays, d_circleObjects, sourceCircle, i);
+        }
 
-            calculateLengthRays<<<1, NUM_RAYS>>>(d_rays, d_circleObjects, sourceCircle);
+        drawRays<<<1, NUM_RAYS>>>(d_pixels, d_rays, sourceCircle);
 
-            drawRays<<<1, NUM_RAYS>>>(d_pixels, d_rays, sourceCircle);
+        drawCircle<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels,sourceCircle, d_circleObjects);
 
-            cudaMemcpy(pixels, d_pixels, WIDTH * HEIGHT * sizeof(Uint32), cudaMemcpyDeviceToHost);
+        cudaMemcpy(pixels, d_pixels, WIDTH * HEIGHT * sizeof(Uint32), cudaMemcpyDeviceToHost);
 
         SDL_RenderClear(renderer);
         RenderSurface(renderer, surface);
@@ -167,7 +170,7 @@ int main() {
             }
             clearScreenCpu(pixels, blackPixel);
 
-            for(int i = 0; i < 3; i++){
+            for(int i = 0; i < NUM_REFLECTIONS-1; i++){
                 calculateLengthRaysCpu(rays, circles, sourceCircle, i);
                 calculateReflectionCpu(rays, circles, sourceCircle, i);
             }

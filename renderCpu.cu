@@ -26,9 +26,9 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
         Ray ray = rays[i];
 
         double fadeLength = 16;
-        double fadeFactor = 0.997;
+        double fadeFactor = 0.996;
         double fadeByte = fadeLength * (ray.pixel[0] >> 24);
-        for(int rayIndex = 0; rayIndex < 4; rayIndex++) {
+        for(int rayIndex = 0; rayIndex < NUM_REFLECTIONS; rayIndex++) {
             
             double dx = cos(ray.angle[rayIndex]);
             double dy = sin(ray.angle[rayIndex]);
@@ -50,8 +50,8 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
                     d_pixels[py * WIDTH + px] = pixel+d_pixels[py * WIDTH + px];
                 }
                 else if(px < 0 || px > WIDTH || py < 0 || py > HEIGHT || fadeByte < 1){
-                    break;break;
-                }/**/
+                    break;
+                }
             }
         }
     }
@@ -125,7 +125,7 @@ void calculateReflectionCpu(Ray *rays, Circle *circlesObject, Circle source, int
         float y0 = source.y + ray.y[rayIndex];
 
         Circle *closestCircle = nullptr;
-        float closestT = std::numeric_limits<float>::max(); // kortste afstand tot raakpunt
+        float closestT = INT_MAX; // kortste afstand tot raakpunt
         float hitX = 0, hitY = 0;
     
         // Zoek de dichtste cirkel
