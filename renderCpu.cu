@@ -25,9 +25,8 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
     for(int i = 0; i < NUM_RAYS; i++) {
         Ray ray = rays[i];
 
-        Uint32 fadeFactor = 6;
-        Uint32 fadeByte = fadeFactor * 0xFF;
-        Uint32 oldFadeByte = fadeFactor * 0xFF;
+        double fadeLength = 16;
+        double fadeFactor = 0.997;
 
         for(int rayIndex = 0; rayIndex < 4; rayIndex++) {
             double dx = cos(ray.angle[rayIndex]);
@@ -36,22 +35,40 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
             int x = ray.x[rayIndex] + source.x;
             int y = ray.y[rayIndex] + source.y;
 
-            for (int j = 0; j < ray.length[rayIndex]; j++) {
-                fadeByte -= 0x01;
-                
-                if(fadeByte > oldFadeByte)
-                    fadeByte = oldFadeByte;
-                else
-                    oldFadeByte = fadeByte;
+            double fadeByte = fadeLength * (ray.pixel[rayIndex] >> 24);
 
+            for (int j = 0; j < ray.length[rayIndex]; j++) {
                 int px = x + (int)(j * dx);
                 int py = y + (int)(j * dy);
-
-                // Controleer of de pixel binnen het scherm valt
-                if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+        
+                // Controleer of de pixel binnen de grenzen van het scherm valt
+                if (j > source.radius && px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
+                    fadeByte = fadeByte*fadeFactor;
                     uint32_t pixel = ray.pixel[rayIndex];
-                    pixel = (pixel & 0x00FFFFFF) | ((fadeByte / fadeFactor) << 24);
-                    d_pixels[py * WIDTH + px] = pixel;
+                    pixel = (pixel & 0x00FFFFFF) | ((uint32_t)(fadeByte / fadeLength) << 24);
+                    
+                    uint8_t a = (pixel >> 0) & 0xFF;
+                    uint8_t r = (pixel >> 8) & 0xFF;
+                    uint8_t g = (pixel >> 16) & 0xFF;
+                    uint8_t b = (pixel >> 24) & 0xFF;
+        
+                    uint32_t d_pixel = d_pixels[py * WIDTH + px];
+        
+                    uint8_t a_old = (d_pixel >> 0) & 0xFF;
+                    uint8_t r_old = (d_pixel >> 8) & 0xFF;
+                    uint8_t g_old = (d_pixel >> 16) & 0xFF;
+                    uint8_t b_old = (d_pixel >> 24) & 0xFF;
+        
+                    uint8_t a_new = saturating_add(a, a_old);
+                    uint8_t r_new = saturating_add(r, r_old);
+                    uint8_t g_new = saturating_add(g, g_old);
+                    uint8_t b_new = saturating_add(b, b_old);
+        
+                    uint32_t new_pixel = (b_new << 24) | (g_new << 16) | (r_new << 8) | (a_new);
+                    atomicExch(&d_pixels[py * WIDTH + px], new_pixel);
+                }
+                else if(px < 0 || px > WIDTH || py < 0 || py > HEIGHT || fadeByte < 1){
+                    return;
                 }
             }
         }
