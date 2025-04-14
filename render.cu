@@ -43,7 +43,7 @@ __global__ void drawRays(Uint32* d_pixels, Ray *rays, Circle source) {
     Ray ray = rays[blockIdx.x * blockDim.x + threadIdx.x];
 
     double fadeLength = 16;
-    double fadeFactor = 0.996;
+    double fadeFactor = 0.998;
     double fadeByte = fadeLength * (ray.pixel[0] >> 24);
 
     for (int rayIndex = 0; rayIndex < NUM_REFLECTIONS; rayIndex++) {

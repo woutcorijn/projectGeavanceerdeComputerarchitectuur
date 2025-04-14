@@ -18,6 +18,6 @@
 
 constexpr int NUM_CIRCLE_OBJECTS = 2;
 constexpr int NUM_REFLECTIONS = 5;
-constexpr int NUM_RAYS = 1121;
+constexpr int NUM_RAYS = 10000;
 
 #endif
