@@ -106,11 +106,10 @@ __global__ void calculateLengthRays(Ray *rays, Circle *circlesObject, Circle sou
     }
     __syncthreads();
 
-
-    if(blockIdx.x * blockDim.x + threadIdx.x >= NUM_RAYS){
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    if(index >= NUM_RAYS){
         return;
     }
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
     Ray &ray = rays[index];
 
     double rayDirX = cos(ray.angle[rayIndex]);

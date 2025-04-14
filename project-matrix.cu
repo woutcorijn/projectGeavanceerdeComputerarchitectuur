@@ -131,7 +131,7 @@ int main() {
                 calculateReflection<<<BLOCKS_RAYS, THREADSPERBLOCK>>>(d_rays, d_circleObjects, sourceCircle, i);
             }
 
-            drawRays<<<BLOCKS_RAYS, NUM_RAYS>>>(d_pixels, d_rays, sourceCircle);
+            drawRays<<<BLOCKS_RAYS, THREADSPERBLOCK>>>(d_pixels, d_rays, sourceCircle);
 
             drawCircle<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels,sourceCircle, d_circleObjects);
 
@@ -145,6 +145,7 @@ int main() {
                 updateFPS(&totalTime, &totalLoops, start, stop);
         }
 
+        printf("Free cuda resources\n");
         cudaFree(d_pixels);
         cudaFree(d_circleObjects);
         cudaFree(d_rays);
@@ -195,12 +196,14 @@ int main() {
         }
     }
 
+    printf("Free host resources\n");
     free(circles);
-    free(pixels);
     free(rays);
+    printf("Free SDL resources\n");
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
 
+    printf("CLOSE PROGRAM\n");
     return 0;
 }
