@@ -36,7 +36,7 @@ void updateFPS(std::chrono::nanoseconds *totalTime, int *totalLoops, std::chrono
 }
 
 int main() {
-    assert(NUM_RAYS < 1024 && "Rays worden nog berekend met threads.id ");
+    //assert(NUM_RAYS < 1024 && "Rays worden nog berekend met threads.id ");
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Couldn't initialize SDL: %s", SDL_GetError());
@@ -98,7 +98,11 @@ int main() {
 
         THREADSPERBLOCK = 1024;
         BLOCKS = (WIDTH*HEIGHT + THREADSPERBLOCK - 1) / THREADSPERBLOCK;
-        BLOCKS_RAYS = (WIDTH*HEIGHT + THREADSPERBLOCK - 1) / THREADSPERBLOCK;
+        BLOCKS_RAYS = (NUM_RAYS + THREADSPERBLOCK - 1) / THREADSPERBLOCK;
+
+        printf("Blocksize: %d\n", THREADSPERBLOCK);
+        printf("Blocks-pixels: %d\n", BLOCKS);
+        printf("Blocks-rays: %d\n", BLOCKS_RAYS);
 
         SDL_Event event;
         bool running{true};
@@ -106,40 +110,39 @@ int main() {
         std::chrono::nanoseconds totalTime = std::chrono::nanoseconds::zero();
         int totalLoops = 0;
 
-    while(running){
-        auto start = std::chrono::high_resolution_clock::now();
-        
-        while(SDL_PollEvent(&event)){
-            if(event.key.key == 120 || event.key.key == 27 || event.type == SDL_EVENT_QUIT){
-                // 'x', 'esc'
-                running = false;
+        while(running){
+            auto start = std::chrono::high_resolution_clock::now();
+            
+            while(SDL_PollEvent(&event)){
+                if(event.key.key == 120 || event.key.key == 27 || event.type == SDL_EVENT_QUIT){
+                    // 'x', 'esc'
+                    running = false;
+                }
+                if(event.type == SDL_EVENT_MOUSE_MOTION && 
+                    event.motion.state != 0){
+                    sourceCircle.x = event.motion.x;
+                    sourceCircle.y = event.motion.y;
+                }
             }
-            if(event.type == SDL_EVENT_MOUSE_MOTION && 
-                event.motion.state != 0){
-                sourceCircle.x = event.motion.x;
-                sourceCircle.y = event.motion.y;
+            clearScreen<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels, blackPixel);
+
+            for(int i = 0; i < NUM_REFLECTIONS - 1; i++){
+                calculateLengthRays<<<BLOCKS_RAYS, THREADSPERBLOCK>>>(d_rays, d_circleObjects, sourceCircle, i);
+                calculateReflection<<<BLOCKS_RAYS, THREADSPERBLOCK>>>(d_rays, d_circleObjects, sourceCircle, i);
             }
-        }
-        clearScreen<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels, blackPixel);
 
-        for(int i = 0; i < NUM_REFLECTIONS - 1; i++){
-            calculateLengthRays<<<1, NUM_RAYS>>>(d_rays, d_circleObjects, sourceCircle, i);
-            calculateReflection<<<1, NUM_RAYS>>>(d_rays, d_circleObjects, sourceCircle, i);
-        }
+            drawRays<<<BLOCKS_RAYS, NUM_RAYS>>>(d_pixels, d_rays, sourceCircle);
 
-        drawRays<<<1, NUM_RAYS>>>(d_pixels, d_rays, sourceCircle);
+            drawCircle<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels,sourceCircle, d_circleObjects);
 
-        drawCircle<<<BLOCKS, THREADSPERBLOCK>>>(d_pixels,sourceCircle, d_circleObjects);
+            cudaMemcpy(pixels, d_pixels, WIDTH * HEIGHT * sizeof(Uint32), cudaMemcpyDeviceToHost);
 
-        cudaMemcpy(pixels, d_pixels, WIDTH * HEIGHT * sizeof(Uint32), cudaMemcpyDeviceToHost);
+            SDL_RenderClear(renderer);
+            RenderSurface(renderer, surface);
+            //SDL_Delay(1);
 
-        SDL_RenderClear(renderer);
-        RenderSurface(renderer, surface);
-        //SDL_Delay(1);
-
-            auto stop = std::chrono::high_resolution_clock::now();
-            updateFPS(&totalTime, &totalLoops, start, stop);
-
+                auto stop = std::chrono::high_resolution_clock::now();
+                updateFPS(&totalTime, &totalLoops, start, stop);
         }
 
         cudaFree(d_pixels);

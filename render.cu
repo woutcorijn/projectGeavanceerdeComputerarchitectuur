@@ -37,7 +37,10 @@ __global__ void drawCircle(Uint32* d_pixels,Circle sourceCircle, Circle *circles
 }
 
 __global__ void drawRays(Uint32* d_pixels, Ray *rays, Circle source) {
-    Ray ray = rays[threadIdx.x];
+    if(blockIdx.x * blockDim.x + threadIdx.x >= NUM_RAYS){
+        return;
+    }
+    Ray ray = rays[blockIdx.x * blockDim.x + threadIdx.x];
 
     double fadeLength = 16;
     double fadeFactor = 0.996;
@@ -95,62 +98,69 @@ __global__ void drawRays(Uint32* d_pixels, Ray *rays, Circle source) {
 }
 
 __global__ void calculateLengthRays(Ray *rays, Circle *circlesObject, Circle source, int rayIndex) {
-    int index = blockIdx.x * blockDim.x + threadIdx.x;
     __shared__ Circle circles[NUM_CIRCLE_OBJECTS];
 
-    int blockIndex = threadIdx.x;
+    int circleIndex = threadIdx.x;
     if(threadIdx.x < NUM_CIRCLE_OBJECTS){
-        circles[blockIndex] = circlesObject[blockIndex];
+        circles[circleIndex] = circlesObject[circleIndex];
     }
     __syncthreads();
 
+
+    if(blockIdx.x * blockDim.x + threadIdx.x >= NUM_RAYS){
+        return;
+    }
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
     Ray &ray = rays[index];
 
-        double rayDirX = cos(ray.angle[rayIndex]);
-        double rayDirY = sin(ray.angle[rayIndex]);
-        double originX = ray.x[rayIndex] + source.x;
-        double originY = ray.y[rayIndex] + source.y;
-    
-        double minLength = WIDTH + HEIGHT; // very large number
-    
-        for (Circle circle : circles) {
-            double dx = rayDirX;
-            double dy = rayDirY;
-    
-            double cx = circle.x;
-            double cy = circle.y;
-            double r2 = circle.radius_square;
-    
-            // Compute quadratic coefficients
-            double a = dx * dx + dy * dy;
-            double b = 2.0 * (dx * (originX - cx) + dy * (originY - cy));
-            double c = (originX - cx) * (originX - cx) + (originY - cy) * (originY - cy) - r2;
-    
-            double discriminant = b * b - 4 * a * c;
-    
-            if (discriminant >= 0.0) {
-                double sqrtDisc = sqrt(discriminant);
-                double t1 = (-b + sqrtDisc) / (2.0 * a);
-                double t2 = (-b - sqrtDisc) / (2.0 * a);
-    
-                // Only consider points in front of ray origin (t > 0)
-                if (t1 > 0) {
-                    double length1 = t1 * sqrt(a);
-                    if (length1 < minLength) minLength = length1;
-                }
-    
-                if (t2 > 0) {
-                    double length2 = t2 * sqrt(a);
-                    if (length2 < minLength) minLength = length2;
-                }
+    double rayDirX = cos(ray.angle[rayIndex]);
+    double rayDirY = sin(ray.angle[rayIndex]);
+    double originX = ray.x[rayIndex] + source.x;
+    double originY = ray.y[rayIndex] + source.y;
+
+    double minLength = WIDTH + HEIGHT; // very large number
+
+    for (Circle circle : circles) {
+        double dx = rayDirX;
+        double dy = rayDirY;
+
+        double cx = circle.x;
+        double cy = circle.y;
+        double r2 = circle.radius_square;
+
+        // Compute quadratic coefficients
+        double a = dx * dx + dy * dy;
+        double b = 2.0 * (dx * (originX - cx) + dy * (originY - cy));
+        double c = (originX - cx) * (originX - cx) + (originY - cy) * (originY - cy) - r2;
+
+        double discriminant = b * b - 4 * a * c;
+
+        if (discriminant >= 0.0) {
+            double sqrtDisc = sqrt(discriminant);
+            double t1 = (-b + sqrtDisc) / (2.0 * a);
+            double t2 = (-b - sqrtDisc) / (2.0 * a);
+
+            // Only consider points in front of ray origin (t > 0)
+            if (t1 > 0) {
+                double length1 = t1 * sqrt(a);
+                if (length1 < minLength) minLength = length1;
+            }
+
+            if (t2 > 0) {
+                double length2 = t2 * sqrt(a);
+                if (length2 < minLength) minLength = length2;
             }
         }
-        ray.length[rayIndex] = (int)minLength;
+    }
+    ray.length[rayIndex] = (int)minLength;
 
 }
 
 
 __global__ void calculateReflection(Ray *rays, Circle *circlesObject, Circle source, int rayIndex) {
+    if(blockIdx.x * blockDim.x + threadIdx.x >= NUM_RAYS){
+        return;
+    }
     int index = blockIdx.x * blockDim.x + threadIdx.x;
     /*__shared__ Circle circles[NUM_CIRCLE_OBJECTS];
 
