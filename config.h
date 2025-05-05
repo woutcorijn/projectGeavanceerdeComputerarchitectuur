@@ -10,14 +10,14 @@
 #include <cassert>
 
 
-#define WIDTH 1300
-#define HEIGHT 1000
+#define WIDTH 800
+#define HEIGHT 600
 #define M_PI 3.14159265358979323846
 #define COLOR_WHITE 0xffffffff
 #define COLOR_BLACK 0x00000000
 
 constexpr int NUM_CIRCLE_OBJECTS = 2;
 constexpr int NUM_REFLECTIONS = 5;
-constexpr int NUM_RAYS =1000;
+constexpr int NUM_RAYS = 2000;
 
 #endif

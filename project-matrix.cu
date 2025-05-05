@@ -4,7 +4,9 @@
 int BLOCKS;
 int BLOCKS_RAYS;
 int THREADSPERBLOCK;
-bool gpu = true;
+bool gpu = false;
+double meanFps = 0;
+int fpsCounter = 0;
 
 // Function to render the modified surface to the screen
 void RenderSurface(SDL_Renderer *renderer, SDL_Surface *surface) {
@@ -26,9 +28,12 @@ void RenderSurface(SDL_Renderer *renderer, SDL_Surface *surface) {
 void updateFPS(std::chrono::nanoseconds *totalTime, int *totalLoops, std::chrono::steady_clock::time_point start, std::chrono::steady_clock::time_point stop){
     (*totalTime) += stop-start;
     (*totalLoops) ++;
+
     if(*totalLoops == 500){
         double totalSeconds = std::chrono::duration_cast<std::chrono::duration<double>>(*totalTime).count();
         double fps = *totalLoops / totalSeconds;
+        meanFps += fps;
+        fpsCounter++;
         std::cout << "FPS: " << fps << std::endl;
         *totalLoops = 0;
         *totalTime = std::chrono::nanoseconds::zero();
@@ -69,10 +74,12 @@ int main() {
     Uint32 greenPixel = SDL_MapRGBA(formatDetail,NULL, 0, 255, 0, 255);
     Uint32 whitePixel = SDL_MapRGBA(formatDetail,NULL, 255, 255, 255, 255);
     Uint32 yellowPixel = SDL_MapRGBA(formatDetail,NULL, 255, 222, 0, 255);
+    Uint32 grayPixel = SDL_MapRGBA(formatDetail,NULL, 209, 209, 209, 255);
+    Uint32 orangePixel = SDL_MapRGBA(formatDetail,NULL, 200, 70, 0, 255);
 
     struct Circle sourceCircle ={200,200,80,80*80, yellowPixel};
-    struct Circle object1 ={900,300,50,50*50, whitePixel};
-    struct Circle object2 ={800,100,40,40*40, whitePixel};
+    struct Circle object1 ={900,300,40,40*40, grayPixel};
+    struct Circle object2 ={800,100,70,70*70, orangePixel};
     Circle *circles = (Circle*)malloc(NUM_CIRCLE_OBJECTS*sizeof(Circle));
     Ray *rays = (Ray*)malloc(NUM_RAYS*sizeof(Ray));
 
@@ -110,7 +117,7 @@ int main() {
         std::chrono::nanoseconds totalTime = std::chrono::nanoseconds::zero();
         int totalLoops = 0;
 
-        while(running){
+        while(running && fpsCounter != 10){
             auto start = std::chrono::high_resolution_clock::now();
             
             while(SDL_PollEvent(&event)){
@@ -158,7 +165,7 @@ int main() {
         std::chrono::nanoseconds totalTime = std::chrono::nanoseconds::zero();
         int totalLoops = 0;
 
-        while(running){
+        while(running && fpsCounter != 4){
             auto start = std::chrono::high_resolution_clock::now();
             
             while(SDL_PollEvent(&event)){
@@ -195,6 +202,8 @@ int main() {
             updateFPS(&totalTime, &totalLoops, start, stop);
         }
     }
+
+    printf("mean fps: %f\n", meanFps/fpsCounter);
 
     printf("Free host resources\n");
     free(circles);

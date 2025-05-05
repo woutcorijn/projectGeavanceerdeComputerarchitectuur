@@ -21,15 +21,24 @@ void drawCircleCpu(Uint32* d_pixels, Circle circle) {
     }
 }
 
+inline uint8_t saturating_addCPU(uint8_t a, uint8_t b) {
+    int sum = a + b;
+    return (sum > 255) ? 255 : sum;
+}
+
 void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
-    for(int i = 0; i < NUM_RAYS; i++) {
+    for (int i = 0; i < NUM_RAYS; i++) {
         Ray ray = rays[i];
 
         double fadeLength = 16;
-        double fadeFactor = 0.996;
+        double fadeFactor = 0.998;
         double fadeByte = fadeLength * (ray.pixel[0] >> 24);
-        for(int rayIndex = 0; rayIndex < NUM_REFLECTIONS; rayIndex++) {
-            
+
+        for (int rayIndex = 0; rayIndex < NUM_REFLECTIONS; rayIndex++) {
+            if (ray.length[rayIndex] == 0) {
+                break;
+            }
+
             double dx = cos(ray.angle[rayIndex]);
             double dy = sin(ray.angle[rayIndex]);
 
@@ -37,25 +46,45 @@ void drawRaysCpu(Uint32* d_pixels, Ray *rays, Circle source) {
             int y = ray.y[rayIndex] + source.y;
 
             for (int j = 0; j < ray.length[rayIndex]; j++) {
-                fadeByte = fadeByte*fadeFactor;
+                fadeByte *= fadeFactor;
+
+                if (fadeByte < 1) break;
 
                 int px = x + (int)(j * dx);
                 int py = y + (int)(j * dy);
-        
-                // Controleer of de pixel binnen de grenzen van het scherm valt
+
                 if (px >= 0 && px < WIDTH && py >= 0 && py < HEIGHT) {
-                    fadeByte = fadeByte*fadeFactor;
                     uint32_t pixel = ray.pixel[rayIndex];
                     pixel = (pixel & 0x00FFFFFF) | ((uint32_t)(fadeByte / fadeLength) << 24);
-                    d_pixels[py * WIDTH + px] = pixel+d_pixels[py * WIDTH + px];
-                }
-                else if(px < 0 || px > WIDTH || py < 0 || py > HEIGHT || fadeByte < 1){
+
+                    uint8_t a = (pixel >> 0) & 0xFF;
+                    uint8_t r = (pixel >> 8) & 0xFF;
+                    uint8_t g = (pixel >> 16) & 0xFF;
+                    uint8_t b = (pixel >> 24) & 0xFF;
+
+                    uint32_t d_pixel = d_pixels[py * WIDTH + px];
+
+                    uint8_t a_old = (d_pixel >> 0) & 0xFF;
+                    uint8_t r_old = (d_pixel >> 8) & 0xFF;
+                    uint8_t g_old = (d_pixel >> 16) & 0xFF;
+                    uint8_t b_old = (d_pixel >> 24) & 0xFF;
+
+                    uint8_t a_new = saturating_addCPU(a, a_old);
+                    uint8_t r_new = saturating_addCPU(r, r_old);
+                    uint8_t g_new = saturating_addCPU(g, g_old);
+                    uint8_t b_new = saturating_addCPU(b, b_old);
+
+                    uint32_t new_pixel = (b_new << 24) | (g_new << 16) | (r_new << 8) | a_new;
+
+                    d_pixels[py * WIDTH + px] = new_pixel;
+                } else {
                     break;
                 }
             }
         }
     }
 }
+
 
 void calculateLengthRaysCpu(Ray *rays, Circle *circlesObject, Circle source, int rayIndex) {
     Circle circles[NUM_CIRCLE_OBJECTS];
