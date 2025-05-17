@@ -4,7 +4,7 @@
 int BLOCKS;
 int BLOCKS_RAYS;
 int THREADSPERBLOCK;
-bool gpu = false;
+bool gpu = true;
 double meanFps = 0;
 int fpsCounter = 0;
 
@@ -78,8 +78,8 @@ int main() {
     Uint32 orangePixel = SDL_MapRGBA(formatDetail,NULL, 200, 70, 0, 255);
 
     struct Circle sourceCircle ={200,200,80,80*80, yellowPixel};
-    struct Circle object1 ={900,300,40,40*40, grayPixel};
-    struct Circle object2 ={800,100,70,70*70, orangePixel};
+    struct Circle object1 ={900,600,40,40*40, grayPixel};
+    struct Circle object2 ={800,400,70,70*70, orangePixel};
     Circle *circles = (Circle*)malloc(NUM_CIRCLE_OBJECTS*sizeof(Circle));
     Ray *rays = (Ray*)malloc(NUM_RAYS*sizeof(Ray));
 
@@ -117,7 +117,7 @@ int main() {
         std::chrono::nanoseconds totalTime = std::chrono::nanoseconds::zero();
         int totalLoops = 0;
 
-        while(running && fpsCounter != 10){
+        while(running){
             auto start = std::chrono::high_resolution_clock::now();
             
             while(SDL_PollEvent(&event)){
@@ -165,7 +165,7 @@ int main() {
         std::chrono::nanoseconds totalTime = std::chrono::nanoseconds::zero();
         int totalLoops = 0;
 
-        while(running && fpsCounter != 4){
+        while(running){
             auto start = std::chrono::high_resolution_clock::now();
             
             while(SDL_PollEvent(&event)){
